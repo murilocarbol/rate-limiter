@@ -11,43 +11,49 @@ import (
 
 // RateLimiterConfig Configuração personalizada para o rate limiter
 type RateLimiterConfig struct {
-	Limit        int
-	Window       time.Duration
-	ErrorMessage string
+	Token          string
+	Requests       int
+	LimiterUseCase usecases.LimiterUseCaseInterface
 }
+
+const (
+	errorMessage string = "you have reached the maximum number of requests or actions allowed within a certain time frame"
+)
 
 func RateLimiterMiddleware(config RateLimiterConfig) fiber.Handler {
 	start := time.Now()
-
-	// Mapa para armazenar contadores de requisições
-	requestCounts := make(map[string]int)
 
 	return func(c *fiber.Ctx) error {
 
 		// Identifica o IP do cliente
 		clientIP := c.IP()
 		parameter := clientIP
+		limit := 10
 
 		headers := c.GetReqHeaders()
 
-		token := headers["Token"][0]
-		if !strings.EqualFold(token, "") {
-			log.Printf("Token informado: %s", token)
-			parameter = token
+		if headers["Api_key"] != nil {
+			token := headers["Api_key"]
+			if !strings.EqualFold(token[0], "") && strings.EqualFold(token[0], config.Token) {
+				log.Printf("Token informado: %s", token)
+				parameter = token[0]
+				limit = config.Requests
+				log.Printf("Parameter: %s | Limit: %d", parameter, limit)
+			}
 		}
 
-		limiterUseCase := usecases.NewLimiterUseCase()
-		resp := limiterUseCase.ValidRateLimiter(parameter)
-		log.Printf("Resposta usecase %s", resp)
+		err := config.LimiterUseCase.ValidRateLimiter(parameter, limit)
+		if err != nil && err.Error() == errorMessage {
 
-		// Incrementa o contador de requisições
-		requestCounts[clientIP]++
+			// Reseta o contador após o período da janela
+			go func(ip string) {
+				time.Sleep(time.Minute)
+				config.LimiterUseCase.RemoveBlock(ip)
+			}(clientIP)
 
-		// Verifica se o limite foi excedido
-		if requestCounts[clientIP] > config.Limit {
-			log.Printf("IP %s excedeu o limite de %d requisições.", clientIP, config.Limit)
+			log.Printf("IP %s excedeu o limite de %d requisições.", parameter, limit)
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-				"message": config.ErrorMessage,
+				"message": errorMessage,
 			})
 		}
 
@@ -58,12 +64,6 @@ func RateLimiterMiddleware(config RateLimiterConfig) fiber.Handler {
 			c.Response().StatusCode(),
 			time.Since(start),
 		)
-
-		// Reseta o contador após o período da janela
-		go func(ip string) {
-			time.Sleep(config.Window)
-			delete(requestCounts, ip)
-		}(clientIP)
 
 		// Continua o fluxo padrão da chamada (controller)
 		return c.Next()

@@ -2,41 +2,54 @@ package config
 
 import (
 	"fmt"
-	"github.com/gofiber/fiber/v2"
-	"github.com/spf13/viper"
 	"rate-limiter/application/controllers"
 	"rate-limiter/application/middleware"
-	"time"
+	"rate-limiter/application/repository"
+	"rate-limiter/application/usecases"
+	"strconv"
+	"strings"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/spf13/viper"
 )
 
 type Configure struct {
-	TOKEN string `mapstructure:"TOKEN"`
+	apiKey string `mapstructure:"API_KEY"`
 }
 
 func Initialize() {
 
 	// Configuração das variáveis de ambiente
-	_, err := LoadConfig(".")
+	cfg, err := LoadConfig(".")
 	if err != nil {
 		panic(err)
 	}
 
 	app := fiber.New()
 
+	cfg.apiKey = viper.GetString("API_KEY")
+	split := strings.Split(cfg.apiKey, ":")
+
+	token := split[0]
+	request, _ := strconv.Atoi(split[1])
+
+	redisRepository := repository.NewRedisRepository()
+	limiterUseCase := usecases.NewLimiterUseCase(redisRepository)
+
 	// Configuração do middleware
 	rateLimiterConfig := middleware.RateLimiterConfig{
-		Limit:        5,                // Limite de requisições
-		Window:       10 * time.Second, // Janela de tempo para resetar
-		ErrorMessage: "you have reached the maximum number of requests or actions allowed within a certain time frame.",
+		Token:          token,   // Token registrado no config
+		Requests:       request, // Limit de requests do token
+		LimiterUseCase: limiterUseCase,
 	}
 
-	// Aplica o middleware com parâmetros personalizados
+	// Aplica o middleware
 	app.Use(middleware.RateLimiterMiddleware(rateLimiterConfig))
 
 	setRoutes(app)
 
 	// Inicializa o servidor
-	if err := app.Listen(":3000"); err != nil {
+	if err := app.Listen(":8080"); err != nil {
 		panic(err)
 	}
 }

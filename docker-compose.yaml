@@ -1,5 +1,6 @@
 services:
   redis:
+    container_name: redis
     image: redis:latest
     restart: always
     ports:
@@ -8,7 +9,7 @@ services:
       - /path/to/local/dаta:/root/redis
       - /path/to/local/redis.conf:/usr/local/etc/redis/redis.conf
     environment:
-      - REDIS_PASSWORD=my-password
+      - REDIS_PASSWORD=
       - REDIS_PORT=6379
       - REDIS_DATABASES=16
 
@@ -19,6 +20,6 @@ services:
     environment:
       - TOKEN=TokenTest
     ports:
-      - "3000:3000"
+      - "8080:8080"
     depends_on:
       - redis
