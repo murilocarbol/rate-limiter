@@ -9,7 +9,7 @@ Desafio Pós Go Expert - 2024 Desafios Técnicos - Rate Limiter - FullCycle
     - Certifique-se de ter o Docker instalado em sua máquina.
 
   1. Clonar o Repositório:~
-  ```git clone https://github.com/murilocarbol/rate-limiter.git````
+  ```git clone https://github.com/murilocarbol/rate-limiter.git```
 
   2. Rode o docker para buildar a imagem gerando o container com a aplicação e o redis:
   ```docker-compose up```
